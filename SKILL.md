@@ -1,6 +1,7 @@
 ---
 name: 3d-print-quote
-description: 3D 打印报价计算。当用户要算 3D 打印件的成本或报价、拿到 STL/3MF/GCode 文件要估价、或询问某个件打出来值多少钱时使用。支持四种输入层级：切片文件（GCode / .gcode.3mf）读真实耗材并计入机时，模型文件（STL/3MF）按体积估算。
+description: 3D 打印报价与成本计算。当用户要算某个打印件的成本或报价、拿到 STL/3MF/GCode/.gcode.3mf 文件要估价、问「这个打印多少钱」「打出来值不值」「按克重怎么算」「给客户报个价」，或需要材料用量与机器时长时使用。切片文件读真实耗材与时长，模型文件按体积估算。
+description_en: 3D printing quote and cost calculation. Use when the user wants to price a printed part, hands over an STL/3MF/GCode file for an estimate, asks "how much does this cost to print" / "is it worth printing" / "how do I quote this", or needs filament usage and machine time. Sliced files give real usage and duration; model files are estimated from volume.
 version: 1.1.0
 agent_created: true
 ---
