@@ -1,10 +1,21 @@
+<div align="center">
+
 # 3d-print-quote
 
-[English](README.en.md) | 简体中文
+**给 AI 用的 3D 打印报价 skill**
 
-给 AI 用的 3D 打印报价 skill。丢一个模型文件进去，算出成本、报价和完整的参数明细。
+丢一个模型文件进去，算出成本、报价和完整的参数明细
 
-零依赖，Python 标准库就能跑（不用 numpy、不用 trimesh）。
+[![Python](https://img.shields.io/badge/python-3.7%2B-blue?logo=python&logoColor=white)](https://www.python.org/)
+[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![Dependencies](https://img.shields.io/badge/dependencies-none-brightgreen)](#)
+[![Platform](https://img.shields.io/badge/platform-any-lightgrey)](#)
+
+[English](README.en.md) · 简体中文
+
+</div>
+
+---
 
 ## 它解决什么
 
@@ -62,9 +73,9 @@ STL 给的是**实心体积**——把模型当成一整块塑料。但真实打
 
 所以几何路径默认按 **25%** 换算。注意这 25% 不是切片软件里那个「填充率」滑块——那个通常只有 10~15%，因为它不含壁厚、顶底层和支撑。**拿 15% 直接当系数会低估约 40%。**
 
-不同模型这个比值差异很大（工作区的样本分布在 5%~15% 的填充设置），25% 是拍板的默认值，不是统计结果。要更准就上传切片文件。
+不同模型这个比值差异很大，25% 是拍板的默认值，不是统计结果。要更准就上传切片文件。
 
-## 文件结构
+## 目录结构
 
 ```
 3d-print-quote/
@@ -109,10 +120,6 @@ STL 给的是**实心体积**——把模型当成一整块塑料。但真实打
 - 填充系数默认 25% 对薄壳 / 花瓶模式件会低估
 - 比表面积可作薄壁代理指标，尚未校准阈值
 
-## 许可
-
-MIT。见 `LICENSE`。
-
 ## 回归验证
 
 `tests/` 里三个样本，各覆盖一个分支：
@@ -126,3 +133,13 @@ MIT。见 `LICENSE`。
 ```bash
 for f in tests/*.stl; do python scripts/analyze.py "$f"; done
 ```
+
+---
+
+<div align="center">
+
+MIT · 见 [LICENSE](LICENSE)
+
+材料价格与行业数据采样自中国大陆市场（2026-10）
+
+</div>

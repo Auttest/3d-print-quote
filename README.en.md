@@ -1,12 +1,23 @@
+<div align="center">
+
 # 3d-print-quote
 
-English | [简体中文](README.md)
+**An AI skill for 3D printing quotes**
+
+Hand it a model file, get back cost, price, and a full parameter breakdown
+
+[![Python](https://img.shields.io/badge/python-3.7%2B-blue?logo=python&logoColor=white)](https://www.python.org/)
+[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![Dependencies](https://img.shields.io/badge/dependencies-none-brightgreen)](#)
+[![Platform](https://img.shields.io/badge/platform-any-lightgrey)](#)
+
+English · [简体中文](README.md)
+
+</div>
+
+---
 
 > **Data source**: All material prices, industry figures (e.g. the ¥0.1/g print-farm price) and default values in this skill were sampled from the **mainland China** market in October 2026. Material densities are physical constants and transferable. Prices are not — replace them with your own supplier quotes before use.
-
-An AI skill for 3D printing quotes. Hand it a model file, get back cost, price, and a full parameter breakdown.
-
-Zero dependencies — Python standard library only (no numpy, no trimesh).
 
 ## What it solves
 
@@ -64,7 +75,7 @@ Measured on a paired sample (geometry file and sliced file for the same part):
 
 So the geometry path defaults to **25%**. Note this 25% is *not* the "infill percentage" slider in your slicer — that one is typically 10~15%, because it excludes perimeters, top/bottom shells and supports. **Using 15% directly as the factor underestimates by roughly 40%.**
 
-The ratio varies a lot between models (samples in the dev workspace range from 5% to 15% infill settings). 25% is a chosen default, not a statistical result. For better accuracy, upload a sliced file.
+The ratio varies a lot between models. 25% is a chosen default, not a statistical result. For better accuracy, upload a sliced file.
 
 ## Structure
 
@@ -111,10 +122,6 @@ Replace the machine hourly rate, gross margin and material cost with values that
 - The default 25% fill rate underestimates thin-shell / vase-mode parts
 - Surface-area-to-volume ratio could serve as a thin-wall proxy, but thresholds aren't calibrated
 
-## License
-
-MIT. See `LICENSE`.
-
 ## Regression checks
 
 Three samples in `tests/`, each covering one branch:
@@ -128,3 +135,13 @@ Three samples in `tests/`, each covering one branch:
 ```bash
 for f in tests/*.stl; do python scripts/analyze.py "$f"; done
 ```
+
+---
+
+<div align="center">
+
+MIT · see [LICENSE](LICENSE)
+
+Material prices and industry data sampled from the mainland China market (2026-10)
+
+</div>
