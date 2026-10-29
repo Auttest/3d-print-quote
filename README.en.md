@@ -1,5 +1,7 @@
 # 3d-print-quote
 
+English | [简体中文](README.md)
+
 > **Data source**: All material prices, industry figures (e.g. the ¥0.1/g print-farm price) and default values in this skill were sampled from the **mainland China** market in October 2026. Material densities are physical constants and transferable. Prices are not — replace them with your own supplier quotes before use.
 
 An AI skill for 3D printing quotes. Hand it a model file, get back cost, price, and a full parameter breakdown.

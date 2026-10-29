@@ -1,5 +1,7 @@
 # 3d-print-quote
 
+[English](README.en.md) | 简体中文
+
 给 AI 用的 3D 打印报价 skill。丢一个模型文件进去，算出成本、报价和完整的参数明细。
 
 零依赖，Python 标准库就能跑（不用 numpy、不用 trimesh）。
