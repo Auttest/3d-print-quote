@@ -13,7 +13,7 @@ examples_en:
   - "How much does this model cost to print?"
   - "Quote this GCode file with real filament usage"
   - "Price 10 pieces in PLA"
-version: 1.1.0
+version: 1.1.2
 author: auttest
 agent_created: true
 ---
