@@ -1,8 +1,20 @@
 ---
 name: 3d-print-quote
+display_name: 3D打印报价
+display_name_en: 3D Print Quote
 description: 3D 打印报价与成本计算。当用户要算某个打印件的成本或报价、拿到 STL/3MF/GCode/.gcode.3mf 文件要估价、问「这个打印多少钱」「打出来值不值」「按克重怎么算」「给客户报个价」，或需要材料用量与机器时长时使用。切片文件读真实耗材与时长，模型文件按体积估算。
+description_zh: 给 AI 用的 3D 打印报价技能。切片文件读真实耗材与时长，模型文件按体积估算，输出成本明细与报价。
 description_en: 3D printing quote and cost calculation. Use when the user wants to price a printed part, hands over an STL/3MF/GCode file for an estimate, asks "how much does this cost to print" / "is it worth printing" / "how do I quote this", or needs filament usage and machine time. Sliced files give real usage and duration; model files are estimated from volume.
+examples_zh:
+  - "帮我算一下这个模型打出来多少钱"
+  - "这个 GCode 的耗材和时长是多少，帮我报个价"
+  - "客户问价，PLA 打 10 件报一个"
+examples_en:
+  - "How much does this model cost to print?"
+  - "Quote this GCode file with real filament usage"
+  - "Price 10 pieces in PLA"
 version: 1.1.0
+author: auttest
 agent_created: true
 ---
 
@@ -37,9 +49,9 @@ agent_created: true
 
 | 文件                        | 什么时候读                         |
 | ------------------------- | ----------------------------- |
-| `references/materials.md` | **脚本自动读**，不用手动翻。查某种料的密度和单价时才看 |
-| `references/fill-rate.md` | 用户质疑耗材数字、要调填充率、判断是不是薄壳件       |
-| `references/tuning.md`    | 要改默认值、想知道动某个参数影响多大、查验证记录      |
+| @references/materials.md | **脚本自动读**，不用手动翻。查某种料的密度和单价时才看 |
+| @references/fill-rate.md | 用户质疑耗材数字、要调填充率、判断是不是薄壳件       |
+| @references/tuning.md    | 要改默认值、想知道动某个参数影响多大、查验证记录      |
 
 主文件只放「怎么做」，「为什么」都在 references 里。日常报价读完主文件就够了。
 
@@ -49,11 +61,11 @@ agent_created: true
 
 **自研模型不适用成本加成**：卖自己设计的模型，价格该按价值定，不是按克重累加。那种情况下这工具只用来确认「低于多少不卖」。
 
-行业背景和取值理由见 `references/tuning.md`。
+行业背景和取值理由见 @references/tuning.md。
 
 ## 硬约束（违反就是事故）
 
-1. **数字不许自造。** 材料密度和单价只能查 `references/materials.md`。
+1. **数字不许自造。** 材料密度和单价只能查 @references/materials.md。
    - 表里没有的料 → 问用户，不许编
    - **用户没给进价 → 直接用表里的「参考进价」算，不要停下来问**。停下来问就失去"够快"的意义了。但必须在报价里注明"单价为参考值，非你的实际进价"
    - **置信度标「低」的料**（PEEK、ULTEM、Inconel 718/625、钴铬、牙科树脂、SLS 弹性体等）→ **必须提醒用户向供应商询价**，不能拿参考值闷头报
@@ -112,7 +124,7 @@ agent_created: true
 | 损耗率     | AI 判断 + 声明 | **低**        | 别纠结，默认就行                |
 | 材料 / 数量 | 必问或自动读     | —            | 缺了算不了                   |
 
-**记住两条**：损耗率别纠结（12%→20% 只动 3%）；开机费是小单最大杠杆（0→¥30 报价翻三倍半）。完整敏感度实测见 `references/tuning.md`。
+**记住两条**：损耗率别纠结（12%→20% 只动 3%）；开机费是小单最大杠杆（0→¥30 报价翻三倍半）。完整敏感度实测见 @references/tuning.md。
 
 ## 流程
 
@@ -191,7 +203,7 @@ python scripts/quote.py --volume 355.139 --material PLA \
 - `level` —— 信息层级：`sliced` / `geometry+slice_params` / `geometry+meta` / `geometry`
 - `slice_params` —— 只有工程 3MF 才有，**是设置值不是结果值**，只拿来讲给用户听，不进计算
 
-**改价格改 `references/materials.md` 就行**，脚本每次实时读那张表，没有第二份数据要同步。表里「你的单价」列填了就优先用你的。
+**改价格改 @references/materials.md 就行**，脚本每次实时读那张表，没有第二份数据要同步。表里「你的单价」列填了就优先用你的。
 
 `analyze.py` 的 `warnings` 字段是体检结果，必须看：
 
@@ -208,7 +220,7 @@ python scripts/quote.py --volume 355.139 --material PLA \
 ## 已验证
 
 `tests/` 下三个样本谁都能跑，覆盖体积算法 / 不封闭网格 / 单位下限三个分支。  
-验证记录和算术回归全表见 `references/tuning.md`。
+验证记录和算术回归全表见 @references/tuning.md。
 
 ## 默认值
 
@@ -236,7 +248,7 @@ python scripts/quote.py --volume 355.139 --material PLA \
 
 只提醒，不擅自动手。加不加用户说了算。
 
-**机时不能省**：两个件克重差 8%、纯克重报价只差 2 块，机器占用差 82%——按克重报价，大件就是白干。实证数据见 `references/tuning.md`。
+**机时不能省**：两个件克重差 8%、纯克重报价只差 2 块，机器占用差 82%——按克重报价，大件就是白干。实证数据见 @references/tuning.md。
 
 ## 填充系数：几何路径的量级误差源
 
@@ -252,7 +264,7 @@ python scripts/quote.py --volume 355.139 --material PLA \
 
 **薄壳 / 花瓶模式件不适用 25%**：那种件几乎只有壁厚，实际比例低于 25%，会低估。判断出是这类件时说明。
 
-为什么是 25%、敏感度多大、用户给了填充率怎么换算、支撑项重叠 → `references/fill-rate.md`
+为什么是 25%、敏感度多大、用户给了填充率怎么换算、支撑项重叠 → @references/fill-rate.md
 
 ## 层高：按文件执行，不擅自改
 
