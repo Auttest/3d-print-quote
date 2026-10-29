@@ -17,12 +17,65 @@ import re
 import sys
 import zipfile
 
-# 家用 FDM 成型尺寸的合理上界（mm），超过即提示确认。
-# 30cm 是目前主流家用机的边界，超了要确认是单位问题还是真用了大机器
-FDM_MAX_BUILD_MM = 300.0
+# 成型体积（mm），X × Y × Z。按真实机型填，改这里即可。
+# 超长件可以沿平台对角线斜放，所以判断能不能打不能只比最长边——
+# 341mm 的件斜着有可能塞进 330mm 的机器，得把绕 Z 轴的旋转算进去。
+BUILD_VOLUME_MM = (330.0, 320.0, 325.0)
 # 按 mm 解析后小于该值 → 怀疑文件其实用 inch 写的，×25.4 才是真实尺寸
 INCH_SUSPECT_MM = 8.0
 INCH = 25.4
+
+
+def fit_in_build(bbox, build=BUILD_VOLUME_MM):
+    """判断包围盒能否放进成型体积，允许轴对齐置换 + 绕 Z 轴旋转（对角线摆放）。
+
+    返回 dict：fits / mode(axis|diagonal|none) / angle_deg / placed_mm / note
+    """
+    dims = [float(x) for x in bbox]
+    best = None
+    for hi in range(3):                      # 件的哪条边朝上当高度
+        h = dims[hi]
+        rest = [dims[i] for i in range(3) if i != hi]
+        u, v = rest[0], rest[1]
+        for mzi in range(3):                 # 机器哪条轴当 Z
+            mz = build[mzi]
+            if h > mz + 1e-9:
+                continue
+            rest_m = [build[i] for i in range(3) if i != mzi]
+            mx, my = rest_m[0], rest_m[1]
+            for i in range(181):             # 绕 Z 轴 0~90°，步长 0.5°
+                th = math.radians(i * 0.5)
+                w = u * math.cos(th) + v * math.sin(th)
+                d = u * math.sin(th) + v * math.cos(th)
+                if w <= mx + 1e-9 and d <= my + 1e-9:
+                    cand = {
+                        '_i': i,
+                        'fits': True,
+                        'mode': 'axis' if i == 0 else 'diagonal',
+                        'angle_deg': round(i * 0.5, 1),
+                        'placed_mm': [round(w, 1), round(d, 1), round(h, 1)],
+                        'build_mm': list(build),
+                    }
+                    if best is None or i < best['_i']:
+                        best = cand
+                    break
+    if best is None:
+        return {
+            'fits': False,
+            'mode': 'none',
+            'angle_deg': None,
+            'placed_mm': None,
+            'build_mm': list(build),
+            'note': '放不进 %.0f×%.0f×%.0f 成型空间（已试轴对齐与对角线旋转），需分件或换更大机型' % build,
+        }
+    best.pop('_i', None)
+    w, d, h = best['placed_mm']
+    if best['mode'] == 'axis':
+        best['note'] = '轴对齐可放，占地 %.1f×%.1f×%.1f mm' % (w, d, h)
+    else:
+        best['note'] = '需沿平台对角线斜放（绕 Z 轴约 %.1f°），占地 %.1f×%.1f×%.1f mm' % (
+            best['angle_deg'], w, d, h)
+    return best
 
 
 def detect_kind(path):
@@ -334,13 +387,28 @@ def analyze(path):
     if declared:
         result['unit'] = {'declared': declared, 'source': '3mf-spec'}
     elif geom:
+        result['unit'] = {'declared': None, 'source': 'guess',
+                          'note': 'STL 无单位标记，需结合模型用途判断'}
+
+    # 尺寸适配：独立于单位判断。3MF 声明了单位也要查——
+    # 单位没疑义不代表打得下，超长件还得看能不能摆进平台。
+    if geom:
+        fit = fit_in_build(geom['bbox_mm'])
+        result['fit'] = fit
         md = geom['max_dim_mm']
-        note = 'STL 无单位标记，需结合模型用途判断'
-        if md > FDM_MAX_BUILD_MM:
-            warnings.append('UNIT_CHECK_LARGE: 最大边 %.1fmm 超过常见 FDM 成型尺寸，确认单位或机型' % md)
-        elif md < INCH_SUSPECT_MM:
+        b = geom['bbox_mm']
+        if not declared and md < INCH_SUSPECT_MM:
             warnings.append('UNIT_CHECK_SMALL: 最大边仅 %.1fmm，若按 inch 换算为 %.1fmm，请确认' % (md, md * INCH))
-        result['unit'] = {'declared': None, 'source': 'guess', 'note': note}
+        if not fit['fits']:
+            if declared:
+                warnings.append('OVERSIZE_BUILD: %.1f×%.1f×%.1fmm 放不进 %.0f×%.0f×%.0f 成型空间'
+                                '（已含对角线旋转），需分件或换更大机型'
+                                % (b[0], b[1], b[2],
+                                   BUILD_VOLUME_MM[0], BUILD_VOLUME_MM[1], BUILD_VOLUME_MM[2]))
+            else:
+                warnings.append('UNIT_CHECK_LARGE: 最大边 %.1fmm，按 mm 解开放不进 %.0f×%.0f×%.0f，'
+                                '确认单位或机型' % (md, BUILD_VOLUME_MM[0], BUILD_VOLUME_MM[1],
+                                                 BUILD_VOLUME_MM[2]))
 
     # 切片数据
     slice_info = None

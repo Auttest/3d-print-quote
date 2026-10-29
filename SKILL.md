@@ -13,7 +13,7 @@ examples_en:
   - "How much does this model cost to print?"
   - "Quote this GCode file with real filament usage"
   - "Price 10 pieces in PLA"
-version: 1.1.2
+version: 1.1.3
 author: auttest
 agent_created: true
 ---
@@ -79,9 +79,10 @@ agent_created: true
 9. **单位假设必须出声，猜对了也要说。** STL 不存单位，`mm` 是你替用户定的默认值。
    - **不管判断得多有把握，输出里都要写明「文件未标注单位，按 mm 处理」并列出尺寸**
    - 只在发生转换时才告知是不够的。用户得知道默认取了什么，否则真碰上 inch 的件，他看着一个离谱的数会摸不着头脑——不知道是你判错了，还是模型本来就那么大
-   - 脚本已经自动判两种边界（阈值：300mm / 8mm）：
-     - `max_dim_mm > 300` → `UNIT_CHECK_LARGE`，超过家用机成型尺寸，确认单位或机型
+   - 脚本自动判两种边界（成型体积 330×320×325mm，平台对角线最长 459.7mm）：
+     - 放不进成型体积 → 单位已声明时报 `OVERSIZE_BUILD`；单位未声明时报 `UNIT_CHECK_LARGE`（那种情况先怀疑单位错）
      - `max_dim_mm < 8` → `UNIT_CHECK_SMALL`，怀疑文件其实是用 inch 写的，**×25.4 才是真实尺寸**
+   - **超长件可以沿平台对角线斜放**，脚本会把绕 Z 轴的旋转算进去再判。摆得下就不报警，`fit.mode` 为 `diagonal` 时把角度顺手告诉用户
    - 脚本只在越界时告警，**但没告警不等于不用声明**——按 mm 处理这个假设，每一次都要写在输出里
    - 拿不准就问，别闷头算完事
    - 3MF 自带单位标记（`unit.declared` 有值）——那是文件给的，不是你猜的，标注来源即可，不用当假设声明
@@ -202,6 +203,9 @@ python scripts/quote.py --volume 355.139 --material PLA \
 
 - `level` —— 信息层级：`sliced` / `geometry+slice_params` / `geometry+meta` / `geometry`
 - `slice_params` —— 只有工程 3MF 才有，**是设置值不是结果值**，只拿来讲给用户听，不进计算
+- `fit` —— 能不能摆进成型体积（330×320×325mm）：`fits` / `mode`（`axis` / `diagonal` / `none`）/ `angle_deg` / `note`
+  - **超长件可沿平台对角线斜放**（对角线最长 459.7mm），脚本把绕 Z 轴旋转算进去了，摆得下就不报警
+  - `mode: diagonal` 时说明要斜放，`angle_deg` 就是摆放角度，顺手告诉用户
 
 **改价格改 @references/materials.md 就行**，脚本每次实时读那张表，没有第二份数据要同步。表里「你的单价」列填了就优先用你的。
 
@@ -210,7 +214,9 @@ python scripts/quote.py --volume 355.139 --material PLA \
 | 告警                         | 含义               | 怎么办                              |
 | -------------------------- | ---------------- | -------------------------------- |
 | `NOT_WATERTIGHT`           | 网格不封闭，体积不可靠      | 提醒用户修复，或改用切片文件的耗材量               |
-| `UNIT_CHECK_LARGE/SMALL`   | 单位可疑             | 结合模型用途判断，必要时问用户                  |
+| `UNIT_CHECK_SMALL`         | 件太小，单位可疑          | 怀疑文件其实用 inch 写的，×25.4 换算后确认          |
+| `UNIT_CHECK_LARGE`         | 单位未声明 + 摆不进成型体积  | 先怀疑单位错（inch 当 mm），再怀疑机型             |
+| `OVERSIZE_BUILD`           | 单位没错，但件太大摆不下     | 需分件打印或换更大机型。看 `fit` 字段确认            |
 | `NO_SLICE_DATA`            | 未切片              | 只能走克重模型，可提示「有 GCode 能算更准」        |
 | `SLICE_PARAMS_ONLY`        | 有切片参数但没 GCode    | **不是错误**。参数照报给用户，耗材仍按 25% 估，机时不计 |
 | `BINARY_GCODE`             | Prusa 二进制 bgcode | 请用户导出纯文本 gcode                   |
