@@ -1,0 +1,8 @@
+# 统一换行符，避免跨平台协作时 diff 被 CRLF 污染
+* text=auto eol=lf
+
+# 二进制文件，不做任何转换
+*.stl binary
+*.3mf binary
+*.gcode binary
+*.png binary

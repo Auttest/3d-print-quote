@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+
+.DS_Store
+Thumbs.db
+
+.vscode/
+.idea/
+
+# 打包产物
+*.zip
