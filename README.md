@@ -66,18 +66,24 @@ STL 给的是**实心体积**——把模型当成一整块塑料。但真实打
 
 ```
 3d-print-quote/
-├── SKILL.md                    # 给 AI 看的操作手册
+├── SKILL.md                    # 给 AI 看的操作手册（主文件）
 ├── README.md
-├── references/
-│   └── materials.md            # 41 种材料：密度 + 参考进价
+├── references/                 # 按需加载，主文件不一次全读
+│   ├── materials.md            # 41 种材料：密度 + 参考进价
+│   ├── fill-rate.md            # 填充系数的依据、敏感度、例外
+│   └── tuning.md               # 参数调优、敏感度实测、验证记录
 ├── scripts/
 │   ├── analyze.py              # 文件解析 + 体检，输出 JSON
 │   ├── quote.py                # 纯算术，不碰文件
 │   ├── materials.py            # 查材料表
 │   └── mesh.py                 # 零依赖 STL/3MF 网格解析
 └── tests/
-    └── cube_10mm.stl           # 10mm 标准立方体，回归样本
+    ├── cube_10mm.stl           # 10mm 标准立方体，回归样本
+    ├── open_cube_10mm.stl      # 缺一个面，测不封闭网格
+    └── small_cube_5mm.stl      # 5mm，测单位下限判断
 ```
+
+采用渐进披露：`SKILL.md` 只放「怎么做」，`references/` 放「为什么」。AI 触发时读主文件，遇到具体问题时才去读对应的参考文件。
 
 **改价格只改 `references/materials.md`**，脚本每次实时读那张表，没有第二份数据要同步。表里「你的单价」列填了就优先用你的。
 
