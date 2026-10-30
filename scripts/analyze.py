@@ -24,6 +24,11 @@ BUILD_VOLUME_MM = (330.0, 320.0, 325.0)
 # 按 mm 解析后小于该值 → 怀疑文件其实用 inch 写的，×25.4 才是真实尺寸
 INCH_SUSPECT_MM = 8.0
 INCH = 25.4
+# 一个工程常切成多盘（plate_1..plate_N），每盘都有独立 GCode。
+# 大盘只读头部——切片统计都在开头（Bambu/Prusa/Cura 都是），没必要读几百 MB。
+GCODE_HEAD_BYTES = 65536
+# 小于这个体积的 GCode 读全文，能拿到完整换料指令（判断多材料更准）
+GCODE_FULL_MAX_BYTES = 2 * 1024 * 1024
 
 
 def fit_in_build(bbox, build=BUILD_VOLUME_MM):
@@ -240,32 +245,103 @@ def parse_gcode_text(text):
 # ---------- 3MF 容器 ----------
 
 def read_3mf_package(path):
-    """读取 3MF 包。返回 dict: model_xml / gcode_text / plate_json / settings_text"""
+    """读取 3MF 包。返回 dict: model_xml / gcode_text / plates / plate_jsons / settings_text
+
+    plates 是全部盘（plate_1..plate_N）的 GCode 列表，按盘号排序。
+    多盘工程必须逐盘解析再累加——只读一盘会少算一个量级。
+    """
     out = {'model_xml': None, 'gcode_text': None, 'plate_json': None,
-           'settings_text': None}
+           'settings_text': None, 'plates': [], 'plate_jsons': []}
     with zipfile.ZipFile(path) as z:
         names = z.namelist()
         for n in names:
             if n.lower().startswith('3d/') and n.lower().endswith('.model'):
                 out['model_xml'] = z.read(n).decode('utf-8', 'ignore')
                 break
-        for n in names:
-            if n.lower().endswith('.gcode') and not n.lower().endswith('.md5'):
-                out['gcode_text'] = z.read(n).decode('utf-8', 'ignore')
-                break
-        for n in names:
-            if n.lower().endswith('plate_1.json'):
-                try:
-                    out['plate_json'] = json.loads(z.read(n).decode('utf-8', 'ignore'))
-                except Exception:
-                    pass
-                break
+
+        def _pno(n):
+            m = re.search(r'plate_(\d+)', n)
+            return int(m.group(1)) if m else 0
+
+        gnames = [n for n in names if re.match(r'(?i)^metadata/plate_\d+\.gcode$', n)]
+        gnames.sort(key=_pno)
+        if not gnames:      # 没有 plate_N 命名，退回任意 gcode
+            gnames = [n for n in names
+                      if n.lower().endswith('.gcode') and not n.lower().endswith('.md5')]
+            gnames.sort()
+        for n in gnames:
+            info = z.getinfo(n)
+            with z.open(n) as f:
+                if info.file_size <= GCODE_FULL_MAX_BYTES:
+                    text = f.read().decode('utf-8', 'ignore')
+                else:
+                    text = f.read(GCODE_HEAD_BYTES).decode('utf-8', 'ignore')
+            out['plates'].append({'name': n, 'text': text})
+        if out['plates']:
+            out['gcode_text'] = out['plates'][0]['text']
+
+        for n in sorted([x for x in names
+                         if re.match(r'(?i)^metadata/plate_\d+\.json$', x)], key=_pno):
+            try:
+                out['plate_jsons'].append(json.loads(z.read(n).decode('utf-8', 'ignore')))
+            except Exception:
+                pass
+        if out['plate_jsons']:
+            out['plate_json'] = out['plate_jsons'][0]
         # Bambu / Orca 工程文件: 完整切片参数（纯 JSON）
         for n in names:
             if n.lower().endswith('project_settings.config'):
                 out['settings_text'] = z.read(n).decode('utf-8', 'ignore')
                 break
     return out
+
+
+def merge_plates(parsed):
+    """多盘合并：耗材 / 时长 / 丝长累加，层数累加，最高件取最大。
+
+    层高、喷嘴、密度、料型以首盘为准——各盘用料不同会在 warnings 里点出来。
+    """
+    if len(parsed) == 1:
+        return parsed[0], []
+    warns = []
+    g = sum(p.get('filament_g') or 0.0 for p in parsed)
+    s = sum(p.get('print_time_s') or 0.0 for p in parsed)
+    mm = sum(p.get('filament_mm') or 0.0 for p in parsed)
+    merged = dict(parsed[0])
+    merged['filament_g'] = round(g, 2)
+    merged['print_time_s'] = round(s, 1)
+    merged['print_time_hms'] = '%dh %dm' % (int(s // 3600), int((s % 3600) // 60))
+    if mm:
+        merged['filament_mm'] = round(mm, 2)
+    layers = [p.get('layers') for p in parsed if p.get('layers')]
+    if layers:
+        merged['layers'] = sum(layers)
+    mz = [p.get('max_z_height') for p in parsed if p.get('max_z_height')]
+    if mz:
+        merged['max_z_height'] = max(mz)
+    objs = [p.get('objects') for p in parsed if p.get('objects')]
+    if objs:
+        merged['objects'] = sum(objs)
+
+    types = []
+    for p in parsed:
+        t = p.get('filament_type')
+        if t and t not in types:
+            types.append(t)
+    if len(types) > 1:
+        by_mat = {}
+        for p in parsed:
+            t = p.get('filament_type') or '未知'
+            by_mat[t] = round(by_mat.get(t, 0.0) + (p.get('filament_g') or 0.0), 2)
+        merged['filament_g_by_material'] = by_mat
+        warns.append('MULTI_MATERIAL_PLATES: 各盘用料不同，按材料分开算（%s），'
+                     '别用同一个单价' % ' / '.join('%s %.2fg' % (k, v)
+                                                for k, v in sorted(by_mat.items())))
+    tools = sorted({t for p in parsed for t in (p.get('tools_used') or [])})
+    if tools:
+        merged['tools_used'] = tools
+    merged['plate_count'] = len(parsed)
+    return merged, warns
 
 
 # 报价用得上的切片参数，其余忽略
@@ -359,7 +435,7 @@ def analyze(path):
         return result
 
     pkg = {'model_xml': None, 'gcode_text': None, 'plate_json': None,
-           'settings_text': None}
+           'settings_text': None, 'plates': [], 'plate_jsons': []}
     if kind in ('3mf', 'gcode_3mf'):
         try:
             pkg = read_3mf_package(path)
@@ -415,23 +491,55 @@ def analyze(path):
     if kind == 'gcode':
         with open(path, 'r', encoding='utf-8', errors='ignore') as f:
             slice_info = parse_gcode_text(f.read())
-    elif inner_gcode:
-        slice_info = parse_gcode_text(inner_gcode)
-        result['slice_source'] = 'Metadata/plate_1.gcode'
+    elif pkg['plates']:
+        parsed = []
+        for p in pkg['plates']:
+            si = parse_gcode_text(p['text'])
+            if si and (si.get('filament_g') or si.get('print_time_s')):
+                si['_plate'] = p['name'].split('/')[-1]
+                parsed.append(si)
+        if parsed:
+            # 各盘的告警先收上来去重，再合并数值
+            for x in parsed:
+                for w in (x.pop('_warnings', None) or []):
+                    if w not in warnings:
+                        warnings.append(w)
+            slice_info, pw = merge_plates(parsed)
+            for w in pw:
+                if w not in warnings:
+                    warnings.append(w)
+            result['plates'] = [
+                {'plate': x['_plate'], 'material': x.get('filament_type'),
+                 'filament_g': x.get('filament_g'),
+                 'print_time_s': x.get('print_time_s'), 'layers': x.get('layers')}
+                for x in parsed]
+            names_src = ', '.join(x['_plate'] for x in parsed)
+            result['slice_source'] = ('%d 盘合计（%s）' % (len(parsed), names_src)
+                                      if len(parsed) > 1 else names_src)
+            if len(parsed) > 1:
+                warnings.append('MULTI_PLATE: 工程切成 %d 盘，耗材与时长已按全部盘累加，'
+                                '别只拿单盘的数去报' % len(parsed))
 
     if slice_info:
         sw = slice_info.pop('_warnings', [])
-        warnings.extend(sw)
-        # 从 plate_1.json 补字段
-        if plate_json:
-            if 'nozzle' not in slice_info and plate_json.get('nozzle_diameter'):
-                slice_info['nozzle'] = plate_json['nozzle_diameter']
+        for w in sw:
+            if w not in warnings:
+                warnings.append(w)
+        # 从 plate_N.json 补字段（多盘时零件数按全部盘累加）
+        pj_all = pkg.get('plate_jsons') or []
+        if pj_all:
+            if 'nozzle' not in slice_info and pj_all[0].get('nozzle_diameter'):
+                slice_info['nozzle'] = pj_all[0]['nozzle_diameter']
             if 'layer_height' not in slice_info:
-                objs = plate_json.get('bbox_objects') or []
-                if objs and objs[0].get('layer_height'):
-                    slice_info['layer_height'] = round(objs[0]['layer_height'], 3)
-            if 'objects' not in slice_info and plate_json.get('bbox_objects'):
-                slice_info['objects'] = len(plate_json['bbox_objects'])
+                for pj in pj_all:
+                    objs = pj.get('bbox_objects') or []
+                    if objs and objs[0].get('layer_height'):
+                        slice_info['layer_height'] = round(objs[0]['layer_height'], 3)
+                        break
+            if 'objects' not in slice_info:
+                n = sum(len(pj.get('bbox_objects') or []) for pj in pj_all)
+                if n:
+                    slice_info['objects'] = n
         result['slice'] = slice_info
     else:
         if kind in ('stl', '3mf'):

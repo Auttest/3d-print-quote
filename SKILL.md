@@ -13,7 +13,7 @@ examples_en:
   - "How much does this model cost to print?"
   - "Quote this GCode file with real filament usage"
   - "Price 10 pieces in PLA"
-version: 1.1.3
+version: 1.1.4
 author: auttest
 agent_created: true
 ---
@@ -203,6 +203,9 @@ python scripts/quote.py --volume 355.139 --material PLA \
 
 - `level` —— 信息层级：`sliced` / `geometry+slice_params` / `geometry+meta` / `geometry`
 - `slice_params` —— 只有工程 3MF 才有，**是设置值不是结果值**，只拿来讲给用户听，不进计算
+- `plates` —— 多盘明细：每盘的 `plate` / `material` / `filament_g` / `print_time_s`
+  - **一个模型切成好几盘是常事**（实测样本切了 9 盘）。`slice` 里的耗材和时长是全部盘累加后的，直接用；别自己挑一盘的数
+  - `slice.filament_g_by_material` 只在跨材料时出现，按材料分组的克数，**分开用各自单价算**
 - `fit` —— 能不能摆进成型体积（330×320×325mm）：`fits` / `mode`（`axis` / `diagonal` / `none`）/ `angle_deg` / `note`
   - **超长件可沿平台对角线斜放**（对角线最长 459.7mm），脚本把绕 Z 轴旋转算进去了，摆得下就不报警
   - `mode: diagonal` 时说明要斜放，`angle_deg` 就是摆放角度，顺手告诉用户
@@ -222,6 +225,8 @@ python scripts/quote.py --volume 355.139 --material PLA \
 | `BINARY_GCODE`             | Prusa 二进制 bgcode | 请用户导出纯文本 gcode                   |
 | `NO_GEOMETRY_IN_SLICE_PKG` | 切片包内没保留网格        | 正常，用 GCode 的耗材量，比几何体积准           |
 | `VOLUME_FIELD_UNRELIABLE`  | 切片头体积字段单位标错      | 已自动改用重量字段，无需处理                   |
+| `MULTI_PLATE`              | 工程切成多盘            | 耗材和时长已按全部盘累加，按总数报，别只报一盘       |
+| `MULTI_MATERIAL_PLATES`    | 各盘用料不同            | 按材料分组算，别用同一个单价                   |
 
 ## 已验证
 
